@@ -212,11 +212,11 @@ def test_pool_service_forwards_individual_motor_settings(tmp_path: Path) -> None
     python.parent.mkdir(parents=True)
     python.touch()
     args = service.parser().parse_args(
-        ["start", "--test", "motor", "--motor-number", "6", "--motor-pwm", "1475"]
+        ["start", "--test", "motor", "--motor-number", "6", "--motor-pwm", "1300"]
     )
     command = service.runner_command(args, tmp_path)
     assert command[command.index("--motor-number") + 1] == "6"
-    assert command[command.index("--motor-pwm") + 1] == "1475"
+    assert command[command.index("--motor-pwm") + 1] == "1300"
 
 
 def test_pool_service_forwards_all_motor_interlock(tmp_path: Path) -> None:
@@ -560,18 +560,25 @@ def test_runner_has_no_compass_heading_feedback() -> None:
     assert "source_system=254" not in source
 
 
-@pytest.mark.parametrize("pwm", [1100, 1499, 1500, 1501, 1900])
-def test_runner_rejects_unsafe_motor_pwm(pwm: int) -> None:
+@pytest.mark.parametrize("pwm", [1100, 1300, 1499, 1501, 1700, 1900])
+def test_runner_allows_full_configured_motor_pwm_range(pwm: int) -> None:
     runner_module = load_video_runner()
     args = runner_module.parse_args([])
     args.test = "motor"
     args.duration = 1.0
     args.motor_pwm = pwm
-    if pwm in (1499, 1501):
+    runner_module.validate_controls(args)
+
+
+@pytest.mark.parametrize("pwm", [1099, 1500, 1901])
+def test_runner_rejects_motor_pwm_outside_configured_range_or_neutral(pwm: int) -> None:
+    runner_module = load_video_runner()
+    args = runner_module.parse_args([])
+    args.test = "motor"
+    args.duration = 1.0
+    args.motor_pwm = pwm
+    with pytest.raises(ValueError, match="motor-pwm"):
         runner_module.validate_controls(args)
-    else:
-        with pytest.raises(ValueError, match="motor-pwm"):
-            runner_module.validate_controls(args)
 
 
 class FakeCommandMav:
