@@ -38,6 +38,7 @@ _pool_usage() {
     echo "Examples:"
     echo "  pool-motor 4 1525 2 10"
     echo "  pool-forward -300 3 10"
+    echo "  pool-forward -1000 20 10   # full forward, set seconds 1..60"
 }
 
 _pool_is_int() {
