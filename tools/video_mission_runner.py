@@ -37,7 +37,9 @@ LONG_OUTPUT_CONFIRMATION = "LONG_FULL_OUTPUT_RESTRAINED"
 MAV_MODE_FLAG_SAFETY_ARMED = 128
 MOTOR_TEST_THROTTLE_PWM = 1
 MOTOR_TEST_ORDER_BOARD = 2
+MOTOR_PWM_MIN = 1100
 MOTOR_NEUTRAL_PWM = 1500
+MOTOR_PWM_MAX = 1900
 DEFAULT_AUDIT_LOG = (
     Path(__file__).resolve().parents[1]
     / "logs"
@@ -219,7 +221,7 @@ def parse_args(argv=None):
         "--motor-pwm",
         type=int,
         default=1525,
-        help="Individual motor-test PWM (1475-1525, excluding neutral 1500)",
+        help="Direct motor-test PWM (1100-1900, excluding neutral 1500)",
     )
     parser.add_argument(
         "--vertical",
@@ -294,8 +296,11 @@ def validate_controls(args) -> None:
         raise ValueError("--duration must be between 1 and 60 seconds")
     if args.test in ("motor", "motor-all") and args.duration > 3.0:
         raise ValueError("motor tests require --duration between 1 and 3 seconds")
-    if not 1475 <= args.motor_pwm <= 1525 or args.motor_pwm == MOTOR_NEUTRAL_PWM:
-        raise ValueError("--motor-pwm must be 1475-1525 and must not be neutral 1500")
+    if (
+        not MOTOR_PWM_MIN <= args.motor_pwm <= MOTOR_PWM_MAX
+        or args.motor_pwm == MOTOR_NEUTRAL_PWM
+    ):
+        raise ValueError("--motor-pwm must be 1100-1900 and must not be neutral 1500")
     if not 5 <= args.countdown <= 60:
         raise ValueError("--countdown must be between 5 and 60 seconds")
     if not 0 <= args.dry_run_hold <= 60:
