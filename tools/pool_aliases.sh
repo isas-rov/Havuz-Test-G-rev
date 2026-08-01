@@ -23,6 +23,7 @@ _pool_usage() {
     echo "  pool-vertical VERTICAL SECONDS [COUNTDOWN]"
     echo "  pool-combined FORWARD VERTICAL SECONDS [COUNTDOWN]"
     echo "  pool-turn     YAW SECONDS [COUNTDOWN]"
+    echo "  pool-mission  [COUNTDOWN]   # full competition route after calibration"
     echo "  pool-status | pool-stop | pool-audit [--lines N] [--full]"
     echo ""
     echo "Ranges:"
@@ -39,6 +40,7 @@ _pool_usage() {
     echo "  pool-motor 5 1525 2 10"
     echo "  pool-forward -300 3 10"
     echo "  pool-vertical 600 3 10"
+    echo "  pool-mission 15"
 }
 
 _pool_is_int() {
@@ -174,6 +176,50 @@ pool-turn() {
         --enable-output --confirm MOTORS_ARE_CLEAR \
         --confirm-high-output HIGH_OUTPUT_RESTRAINED \
         --confirm-long-turn LONG_FULL_OUTPUT_RESTRAINED
+}
+
+pool-mission() {
+    # Edit the calibrated values below after pool tuning. Defaults are
+    # conservative placeholders for this vehicle (forward is negative).
+    if [ "$#" -gt 1 ]; then
+        _pool_usage
+        return 2
+    fi
+    local countdown="${1:-15}"
+    local forward="-400"
+    local trim="0"
+    local turn_yaw="80"
+    local turn_seconds="2.0"
+    local circle_forward="100"
+    local circle_yaw="80"
+    local circle_seconds="12"
+    local yaw_sign="1"
+    local dive_seconds="0"
+    local dive_vertical="1000"
+
+    echo "Starting FULL MISSION with:"
+    echo "  forward=$forward trim=$trim turn_yaw=$turn_yaw turn_seconds=$turn_seconds"
+    echo "  circle_forward=$circle_forward circle_yaw=$circle_yaw circle_seconds=$circle_seconds"
+    echo "  yaw_sign=$yaw_sign dive_seconds=$dive_seconds dive_vertical=$dive_vertical"
+    echo "Edit tools/pool_aliases.sh pool-mission() after calibration."
+
+    _pool_test_run start \
+        --test mission \
+        --forward "$forward" \
+        --straight-yaw-trim "$trim" \
+        --turn-yaw "$turn_yaw" \
+        --turn-seconds "$turn_seconds" \
+        --circle-forward "$circle_forward" \
+        --circle-yaw "$circle_yaw" \
+        --circle-seconds "$circle_seconds" \
+        --yaw-sign "$yaw_sign" \
+        --dive-seconds "$dive_seconds" \
+        --dive-vertical "$dive_vertical" \
+        --countdown "$countdown" \
+        --enable-output --confirm MOTORS_ARE_CLEAR \
+        --confirm-full-mission FULL_MISSION_TUNED \
+        --confirm-high-output HIGH_OUTPUT_RESTRAINED \
+        --confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED
 }
 
 pool-status() {

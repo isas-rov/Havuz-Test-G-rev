@@ -21,6 +21,7 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         "pool-vertical()",
         "pool-combined()",
         "pool-turn()",
+        "pool-mission()",
         "pool-status()",
         "pool-stop()",
         "pool-audit()",
@@ -32,6 +33,8 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
     assert 'local forward="$1" vertical="$2" seconds="$3"' in aliases
     assert 'local yaw="$1" seconds="$2"' in aliases
     assert "--test motor --motor-number" in aliases
+    assert "--test mission" in aliases
+    assert "--confirm-full-mission FULL_MISSION_TUNED" in aliases
     assert "Both physical M3 and M4 get the same mixer demand." in aliases
     assert "--confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED" in aliases
     assert "--confirm-long-vertical LONG_FULL_OUTPUT_RESTRAINED" in aliases
@@ -44,6 +47,68 @@ def test_pool_service_rejects_invalid_motor_duration_early() -> None:
     )
     with pytest.raises(SystemExit, match="between 1 and 3 seconds"):
         service.validate_start(args)
+    args = service.parser().parse_args(
+        ["start", "--test", "motor-all", "--duration", "6", "--motor-pwm", "1900"]
+    )
+    with pytest.raises(SystemExit, match="between 1 and 5 seconds"):
+        service.validate_start(args)
+
+
+def test_pool_service_forwards_full_mission_interlocks(tmp_path: Path) -> None:
+    service = load_pool_service()
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "video_mission_runner.py").write_text("", encoding="utf-8")
+    args = service.parser().parse_args(
+        [
+            "start",
+            "--test",
+            "mission",
+            "--forward",
+            "-500",
+            "--dive-seconds",
+            "3",
+            "--dive-vertical",
+            "1000",
+            "--enable-output",
+            "--confirm",
+            "MOTORS_ARE_CLEAR",
+            "--confirm-full-mission",
+            "FULL_MISSION_TUNED",
+            "--confirm-high-output",
+            "HIGH_OUTPUT_RESTRAINED",
+            "--confirm-long-forward",
+            "LONG_FULL_OUTPUT_RESTRAINED",
+        ]
+    )
+    command = service.runner_command(args, tmp_path)
+    assert command[command.index("--test") + 1] == "mission"
+    assert command[command.index("--forward") + 1] == "-500"
+    assert command[command.index("--dive-seconds") + 1] == "3.0"
+    assert command[command.index("--dive-vertical") + 1] == "1000"
+    assert "--confirm-full-mission" in command
+    assert command[command.index("--confirm-full-mission") + 1] == (
+        "FULL_MISSION_TUNED"
+    )
+    assert "--confirm-high-output" in command
+    assert "--confirm-long-forward" in command
+
+
+def test_runner_requires_full_mission_confirmation() -> None:
+    runner_module = load_video_runner()
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "video_mission_runner.py"
+    ).read_text(encoding="utf-8")
+    assert "MISSION_CONFIRMATION = \"FULL_MISSION_TUNED\"" in source
+    assert "confirm_full_mission" in source
+    args = runner_module.parse_args(
+        ["--test", "mission", "--enable-output", "--confirm", "MOTORS_ARE_CLEAR"]
+    )
+    # Direct main() path checks the mission interlock; keep a source contract too.
+    assert "full mission remains locked" in source
+    assert args.confirm_full_mission is None
 
 
 def test_pool_alias_installer_is_idempotent(tmp_path: Path, monkeypatch) -> None:

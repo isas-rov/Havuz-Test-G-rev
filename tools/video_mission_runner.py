@@ -34,6 +34,7 @@ OUTPUT_CONFIRMATION = "MOTORS_ARE_CLEAR"
 ALL_MOTORS_CONFIRMATION = "ALL_MOTORS_RESTRAINED"
 HIGH_OUTPUT_CONFIRMATION = "HIGH_OUTPUT_RESTRAINED"
 LONG_OUTPUT_CONFIRMATION = "LONG_FULL_OUTPUT_RESTRAINED"
+MISSION_CONFIRMATION = "FULL_MISSION_TUNED"
 MAV_MODE_FLAG_SAFETY_ARMED = 128
 MOTOR_TEST_THROTTLE_PWM = 1
 MOTOR_TEST_ORDER_BOARD = 2
@@ -151,6 +152,21 @@ def parse_args(argv=None):
     parser.add_argument("--forward", type=int, default=200)
     parser.add_argument("--circle-forward", type=int, default=150)
     parser.add_argument("--circle-yaw", type=int, default=150)
+    parser.add_argument(
+        "--dive-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Optional open-loop dive before the first straight (0=disabled; "
+            "no depth hold without a barometer)"
+        ),
+    )
+    parser.add_argument(
+        "--dive-vertical",
+        type=int,
+        default=1000,
+        help="MANUAL_CONTROL z used during optional dive (this vehicle: 1000≈down)",
+    )
     parser.add_argument(
         "--turn-yaw",
         "--turn-yaw-max",
@@ -280,6 +296,13 @@ def parse_args(argv=None):
             f"required value: {LONG_OUTPUT_CONFIRMATION}"
         ),
     )
+    parser.add_argument(
+        "--confirm-full-mission",
+        help=(
+            "Additional interlock for the full competition mission; "
+            f"required value: {MISSION_CONFIRMATION}"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -294,8 +317,10 @@ def validate_controls(args) -> None:
             raise ValueError(f"--{name.replace('_', '-')} must be between 1 and 400")
     if not 1.0 <= args.duration <= 60.0:
         raise ValueError("--duration must be between 1 and 60 seconds")
-    if args.test in ("motor", "motor-all") and args.duration > 3.0:
-        raise ValueError("motor tests require --duration between 1 and 3 seconds")
+    if args.test == "motor" and args.duration > 3.0:
+        raise ValueError("individual motor tests require --duration between 1 and 3 seconds")
+    if args.test == "motor-all" and args.duration > 5.0:
+        raise ValueError("motor-all tests require --duration between 1 and 5 seconds")
     if (
         not MOTOR_PWM_MIN <= args.motor_pwm <= MOTOR_PWM_MAX
         or args.motor_pwm == MOTOR_NEUTRAL_PWM
@@ -309,6 +334,12 @@ def validate_controls(args) -> None:
         raise ValueError("--vertical must be between 0 and 1000")
     if args.test in ("vertical", "combined") and args.vertical == NEUTRAL_VERTICAL:
         raise ValueError("--vertical must not be 500 for a vertical/combined test")
+    if not 0.0 <= args.dive_seconds <= 20.0:
+        raise ValueError("--dive-seconds must be between 0 and 20 seconds")
+    if not 0 <= args.dive_vertical <= 1000 or args.dive_vertical == NEUTRAL_VERTICAL:
+        raise ValueError(
+            "--dive-vertical must be between 0 and 1000 and must not be neutral 500"
+        )
     if not 5.0 <= args.degrees <= 90.0:
         raise ValueError("--degrees must be between 5 and 90")
     if not 0.2 <= args.turn_seconds <= 60.0:
@@ -319,15 +350,34 @@ def validate_controls(args) -> None:
         raise ValueError("--straight-yaw-trim must be between -100 and 100")
 
 
-def dry_run(plan: VideoMissionPlan) -> int:
-    print("VIDEO MISSION RUNNER - DRY RUN - HARDWARE OUTPUT DISABLED")
-    for index, step in enumerate(plan, start=1):
+def print_mission_profile(args, plan: VideoMissionPlan) -> None:
+    """Print the open-loop command profile used by the full mission."""
+    print("MISSION PROFILE (MANUAL open-loop; no compass / depth hold)")
+    for line in plan.summary_lines():
+        print(line)
+    print(
+        "Commands: "
+        f"forward={args.forward}, yaw_trim={args.straight_yaw_trim}, "
+        f"turn_yaw={args.turn_yaw}, turn_seconds={args.turn_seconds:.1f}, "
+        f"circle_forward={args.circle_forward}, circle_yaw={args.circle_yaw}, "
+        f"circle_seconds={args.circle_seconds:.1f}, yaw_sign={args.yaw_sign:+d}"
+    )
+    if args.dive_seconds > 0.0:
         print(
-            f"[{index:02d}/{len(plan.steps):02d}] {step.name:24} "
-            f"kind={step.kind.value:12} duration={step.minimum_seconds:4.1f}s "
-            f"turn={step.degrees:5.0f}deg distance={step.target_distance_m:3.1f}m "
-            f"diameter={step.diameter_m:3.1f}m"
+            f"Dive: vertical z={args.dive_vertical} for {args.dive_seconds:.1f}s "
+            "(thrust timing, not measured depth)"
         )
+    else:
+        print("Dive: disabled (operator places start depth)")
+
+
+def dry_run(plan: VideoMissionPlan, args=None) -> int:
+    print("VIDEO MISSION RUNNER - DRY RUN - HARDWARE OUTPUT DISABLED")
+    if args is None:
+        for line in plan.summary_lines():
+            print(line)
+    else:
+        print_mission_profile(args, plan)
     print("Control: MANUAL open-loop mixer; no compass heading feedback")
     print("RESULT: PLAN_VALID, NO CONNECTION, NO ARM, NO MOTOR OUTPUT")
     return 0
@@ -810,6 +860,32 @@ class ArduSubRunner:
             time.sleep(CONTROL_PERIOD)
         self.neutral(1.0)
 
+    def dive(self, seconds: float, vertical: int, name: str) -> None:
+        """Open-loop vertical thrust; not a measured 1 m depth hold."""
+        print(
+            f"{name}: open-loop dive z={vertical} for {seconds:.1f}s "
+            "(no barometer depth feedback)"
+        )
+        deadline = time.monotonic() + seconds
+        started_at = time.monotonic()
+        active_sample_logged = False
+        while time.monotonic() < deadline:
+            self.send_control(vertical=vertical)
+            if (
+                not active_sample_logged
+                and time.monotonic() - started_at >= 0.3
+                and self.audit is not None
+            ):
+                self.audit.capture(
+                    self.master,
+                    "DIVE_OUTPUT_ACTIVE_SAMPLE",
+                    {"vertical_command": vertical, "dive_seconds": seconds},
+                    duration=0.15,
+                )
+                active_sample_logged = True
+            time.sleep(CONTROL_PERIOD)
+        self.neutral(1.0)
+
     def run_combined_test(self, seconds: float) -> None:
         """Drive forward and vertical axes together through the ArduSub mixer."""
         print(
@@ -911,10 +987,23 @@ class ArduSubRunner:
         print("Circle timer complete; diameter and closure must be checked externally")
 
     def run(self, plan: VideoMissionPlan) -> None:
+        print_mission_profile(self.args, plan)
         print("Mission control: MANUAL open-loop mixer, no compass feedback")
         for step in plan:
+            self.audit_event(
+                "MISSION_STEP_BEGIN",
+                {
+                    "step": step.name,
+                    "kind": step.kind.value,
+                    "minimum_seconds": step.minimum_seconds,
+                    "degrees": step.degrees,
+                    "diameter_m": step.diameter_m,
+                },
+            )
             if step.kind is MotionKind.WAIT:
                 self.wait_neutral(step.minimum_seconds)
+            elif step.kind is MotionKind.DIVE:
+                self.dive(step.minimum_seconds, self.args.dive_vertical, step.name)
             elif step.kind is MotionKind.STRAIGHT:
                 self.straight(step.minimum_seconds, step.name)
             elif step.kind is MotionKind.TURN_RIGHT:
@@ -924,23 +1013,33 @@ class ArduSubRunner:
                 self.circle_right(step.name)
             elif step.kind is MotionKind.STOP:
                 self.neutral(1.0)
+            self.audit_event("MISSION_STEP_END", {"step": step.name})
 
 
 def main() -> int:
     args = parse_args()
     validate_controls(args)
-    plan = VideoMissionPlan.competition_default()
+    plan = VideoMissionPlan.competition_default(dive_seconds=args.dive_seconds)
 
     if not args.enable_output:
         if args.test != "mission":
             return dry_run_motion_test(args)
-        return dry_run(plan)
+        return dry_run(plan, args)
     if not args.connection:
         raise SystemExit("--connection is required with --enable-output")
     if args.confirm != OUTPUT_CONFIRMATION:
         raise SystemExit(
             f"output remains locked; add --confirm {OUTPUT_CONFIRMATION} "
             "only in a safe test"
+        )
+    if (
+        args.test == "mission"
+        and args.confirm_full_mission != MISSION_CONFIRMATION
+    ):
+        raise SystemExit(
+            "full mission remains locked; add "
+            f"--confirm-full-mission {MISSION_CONFIRMATION} only after pool "
+            "calibration of forward, turn, and circle timings"
         )
     if (
         args.test in ("motor-all", "combined")
@@ -962,6 +1061,17 @@ def main() -> int:
             "vehicle is restrained"
         )
     if (
+        args.test == "mission"
+        and args.dive_seconds > 0.0
+        and abs(args.dive_vertical - NEUTRAL_VERTICAL) > 50
+        and args.confirm_high_output != HIGH_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "mission dive remains locked; add "
+            f"--confirm-high-output {HIGH_OUTPUT_CONFIRMATION} only when the "
+            "vehicle is restrained"
+        )
+    if (
         args.test in ("vertical", "combined")
         and args.duration > 5.0
         and args.confirm_long_vertical != LONG_OUTPUT_CONFIRMATION
@@ -973,7 +1083,18 @@ def main() -> int:
             "cut is ready"
         )
     if (
-        args.test in ("straight", "combined")
+        args.test == "mission"
+        and args.dive_seconds > 5.0
+        and args.confirm_long_vertical != LONG_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "long dive remains locked; add "
+            f"--confirm-long-vertical {LONG_OUTPUT_CONFIRMATION} only when "
+            "the vehicle is fully submerged, restrained, and emergency power "
+            "cut is ready"
+        )
+    if (
+        args.test in ("straight", "combined", "mission")
         and abs(args.forward) > 400
         and args.confirm_high_output != HIGH_OUTPUT_CONFIRMATION
     ):
@@ -995,7 +1116,18 @@ def main() -> int:
             "cut is ready"
         )
     if (
-        args.test == "turn-right"
+        args.test == "mission"
+        and abs(args.forward) > 400
+        and args.confirm_long_forward != LONG_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "mission high forward legs remain locked; add "
+            f"--confirm-long-forward {LONG_OUTPUT_CONFIRMATION} only when "
+            "the vehicle is fully submerged, restrained, and emergency power "
+            "cut is ready"
+        )
+    if (
+        args.test in ("turn-right", "mission")
         and abs(args.turn_yaw) > 400
         and args.confirm_high_output != HIGH_OUTPUT_CONFIRMATION
     ):
@@ -1005,7 +1137,7 @@ def main() -> int:
             "vehicle is fully submerged and restrained"
         )
     if (
-        args.test == "turn-right"
+        args.test in ("turn-right", "mission")
         and abs(args.turn_yaw) > 400
         and args.turn_seconds > 5.0
         and args.confirm_long_turn != LONG_OUTPUT_CONFIRMATION
@@ -1029,12 +1161,15 @@ def main() -> int:
             "motor_number": args.motor_number,
             "motor_pwm": args.motor_pwm,
             "vertical": args.vertical,
+            "dive_seconds": args.dive_seconds,
+            "dive_vertical": args.dive_vertical,
             "turn_yaw": args.turn_yaw,
             "turn_seconds": args.turn_seconds,
             "circle_forward": args.circle_forward,
             "circle_yaw": args.circle_yaw,
             "circle_seconds": args.circle_seconds,
             "yaw_sign": args.yaw_sign,
+            "straight_yaw_trim": args.straight_yaw_trim,
         },
     )
     master = open_connection(args.connection, args.baud)

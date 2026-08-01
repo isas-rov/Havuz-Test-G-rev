@@ -116,12 +116,19 @@ pool-forward -300 3 10
 pool-vertical 600 3 10
 pool-combined -300 600 3 10
 pool-turn 300 2 10
+pool-mission 15
 pool-status
 pool-stop
 ```
 
 `pool-vertical` tek mixer `z` komutudur; fiziksel M3 ve M4 aynı dikey
 itkiyi alır. Mantıksal motor `5` = fiziksel M3, `6` = fiziksel M4.
+
+`pool-mission` ileri kategori videosu sırasını çalıştırır (bekle → isteğe bağlı
+açık-çevrim dalış → 4×20 s düz → 90° dönüşler → ~2 m çember → stop). Önce
+havuzda `forward`, `turn-seconds`, `circle-*` ve `yaw-sign` kalibre edilmelidir.
+Alias içindeki varsayılanlar yer tutucudur; kalibrasyondan sonra
+`tools/pool_aliases.sh` içindeki `pool-mission()` değerlerini güncelleyin.
 
 Bağlantı varken güvenli durdurma:
 

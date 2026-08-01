@@ -50,6 +50,8 @@ def parser() -> argparse.ArgumentParser:
     start.add_argument("--motor-number", type=int, choices=range(1, 7), default=1)
     start.add_argument("--motor-pwm", type=int, default=1525)
     start.add_argument("--vertical", type=int, default=550)
+    start.add_argument("--dive-seconds", type=float, default=0.0)
+    start.add_argument("--dive-vertical", type=int, default=1000)
     start.add_argument("--degrees", type=float, default=30.0)
     start.add_argument("--circle-forward", type=int, default=100)
     start.add_argument("--circle-yaw", type=int, default=80)
@@ -124,9 +126,15 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_start(args: argparse.Namespace) -> None:
-    if args.test in ("motor", "motor-all"):
+    if args.test == "motor":
         if not 1.0 <= args.duration <= 3.0:
-            raise SystemExit("motor tests require --duration between 1 and 3 seconds")
+            raise SystemExit(
+                "individual motor tests require --duration between 1 and 3 seconds"
+            )
+    if args.test == "motor-all":
+        if not 1.0 <= args.duration <= 5.0:
+            raise SystemExit("motor-all tests require --duration between 1 and 5 seconds")
+    if args.test in ("motor", "motor-all"):
         if not 1100 <= args.motor_pwm <= 1900 or args.motor_pwm == 1500:
             raise SystemExit(
                 "--motor-pwm must be 1100-1900 and must not be neutral 1500"
@@ -256,6 +264,10 @@ def runner_command(args: argparse.Namespace, root: Path) -> list[str]:
         str(args.motor_pwm),
         "--vertical",
         str(args.vertical),
+        "--dive-seconds",
+        str(args.dive_seconds),
+        "--dive-vertical",
+        str(args.dive_vertical),
         "--degrees",
         str(args.degrees),
         "--circle-forward",
@@ -315,6 +327,37 @@ def runner_command(args: argparse.Namespace, root: Path) -> list[str]:
             command.extend(
                 ["--confirm-long-turn", LONG_OUTPUT_CONFIRMATION]
             )
+        if args.test == "mission":
+            command.extend(
+                ["--confirm-full-mission", MISSION_CONFIRMATION]
+            )
+            if abs(args.forward) > 400:
+                command.extend(
+                    [
+                        "--confirm-high-output",
+                        HIGH_OUTPUT_CONFIRMATION,
+                        "--confirm-long-forward",
+                        LONG_OUTPUT_CONFIRMATION,
+                    ]
+                )
+            if args.dive_seconds > 0.0 and abs(args.dive_vertical - 500) > 50:
+                if "--confirm-high-output" not in command:
+                    command.extend(
+                        ["--confirm-high-output", HIGH_OUTPUT_CONFIRMATION]
+                    )
+            if args.dive_seconds > 5.0:
+                command.extend(
+                    ["--confirm-long-vertical", LONG_OUTPUT_CONFIRMATION]
+                )
+            if abs(args.turn_yaw) > 400:
+                if "--confirm-high-output" not in command:
+                    command.extend(
+                        ["--confirm-high-output", HIGH_OUTPUT_CONFIRMATION]
+                    )
+            if abs(args.turn_yaw) > 400 and args.turn_seconds > 5.0:
+                command.extend(
+                    ["--confirm-long-turn", LONG_OUTPUT_CONFIRMATION]
+                )
     return command
 
 
