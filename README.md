@@ -128,7 +128,10 @@ itkiyi alır. Mantıksal motor `5` = fiziksel M3, `6` = fiziksel M4.
 açık-çevrim dalış → 4×20 s düz → 90° dönüşler → ~2 m çember → stop). Önce
 havuzda `forward`, `turn-seconds`, `circle-*` ve `yaw-sign` kalibre edilmelidir.
 Alias içindeki varsayılanlar yer tutucudur; kalibrasyondan sonra
-`tools/pool_aliases.sh` içindeki `pool-mission()` değerlerini güncelleyin.
+`tools/pool_aliases.sh` içindeki `pool-mission()` değerlerini güncelleyin. Alias
+başlangıçta `mission_calibrated="NO"` ile kilitlidir. Fiziksel M4/M6 onarılıp
+düz gidiş, dalış, 90° dönüş ve yaklaşık 2 m çember ayrı ayrı doğrulandıktan sonra
+son ölçülen değerleri kaydedin ve bu alanı `YES` yapın.
 
 Bağlantı varken güvenli durdurma:
 
@@ -169,6 +172,7 @@ kullanın.
 - Parametresiz veya `--enable-output` olmadan çalıştırma yalnız dry-run yapar.
 - Gerçek test `--enable-output --confirm MOTORS_ARE_CLEAR` ister.
 - Tam görev ayrıca `--confirm-full-mission FULL_MISSION_TUNED` ister.
+- Tam görev geri sayımı ARM ve safety kilidi açılmadan önce tamamlanır.
 - Düğmesiz Pixhawk'ta çıkış safety kilidi yalnız geri sayım ve onaydan sonra
   yazılımla açılır; test sonunda DISARM'dan sonra tekrar kilitlenir.
 - Servis açılışta otomatik başlamaz ve biten/hata veren testi yeniden başlatmaz.

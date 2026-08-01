@@ -126,6 +126,14 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_start(args: argparse.Namespace) -> None:
+    if not 5 <= args.countdown <= 60:
+        raise SystemExit("--countdown must be between 5 and 60 seconds")
+    if not 0.0 <= args.dive_seconds <= 20.0:
+        raise SystemExit("--dive-seconds must be between 0 and 20 seconds")
+    if not 0 <= args.dive_vertical <= 1000 or args.dive_vertical == 500:
+        raise SystemExit(
+            "--dive-vertical must be between 0 and 1000 and must not be neutral 500"
+        )
     if args.test == "motor":
         if not 1.0 <= args.duration <= 3.0:
             raise SystemExit(

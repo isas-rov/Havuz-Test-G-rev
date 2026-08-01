@@ -52,11 +52,28 @@ eşleştirmeyle yapılmalıdır:
 | MAIN OUT 5 | Motor5 | Fiziksel M3 | Sol dikey |
 | MAIN OUT 6 | Motor6 | Fiziksel M4 | Sağ dikey |
 
+### Acil forward-only yeniden kablolama (2026-08-02)
+
+Fiziksel M4 ve M6 ESC'leri arızalandı. Çalışan fiziksel M3, eski M6 yuvasına
+(MAIN OUT 4 / mantıksal Motor4) taşındı. Dikey itki ve tam görev şimdilik iptal.
+
+| MAIN OUT | ArduSub mantıksal motor | Şu anki fiziksel | Konum |
+|---|---:|---:|---|
+| MAIN OUT 1 | Motor1 | M1 | Sol ön, 45° yatay |
+| MAIN OUT 2 | Motor2 | M2 | Sağ ön, 45° yatay |
+| MAIN OUT 3 | Motor3 | M5 | Sol arka, 45° yatay |
+| MAIN OUT 4 | Motor4 | **M3 (taşındı)** | Sağ arka, 45° yatay |
+| MAIN OUT 5 | Motor5 | boş / kullanılmıyor | eski dikey |
+| MAIN OUT 6 | Motor6 | yanmış M4 / kullanılmıyor | eski dikey |
+
+Bu geçici düzende yalnız `pool-motor 1..4` ve `pool-forward` kullanılır.
+`pool-vertical`, `pool-combined` ve `pool-mission` kilitlidir.
+
 Bu tabloyla uyuşmayan kablo varsa birleşik hareket testi yapılmaz.
 
 Tek motor komutundaki `--motor-number`, fiziksel etiketi değil ArduSub mantıksal
-motor numarasını belirtir. Örneğin fiziksel dikey M3, MAIN OUT 5 üzerinde olduğu
-için `--motor-number 5` ile test edilir.
+motor numarasını belirtir. Forward-only yeniden kabloda taşınmış M3 için
+`--motor-number 4` kullanılır.
 
 Kaydedilmiş ESC düzeni aşağıdadır; nihai doğrulama su içindeki itiş yönüdür:
 

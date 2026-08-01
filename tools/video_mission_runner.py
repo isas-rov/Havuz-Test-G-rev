@@ -41,6 +41,16 @@ MOTOR_TEST_ORDER_BOARD = 2
 MOTOR_PWM_MIN = 1100
 MOTOR_NEUTRAL_PWM = 1500
 MOTOR_PWM_MAX = 1900
+PHYSICAL_MOTOR_LABELS = {
+    # Emergency forward-only rewire (2026-08-02):
+    # burned physical M4 + M6 removed; working M3 moved onto MAIN OUT 4.
+    1: "M1",
+    2: "M2",
+    3: "M5",
+    4: "M3_relocated_was_M6_slot",
+    5: "UNUSED_vertical",
+    6: "UNUSED_burned_M4",
+}
 DEFAULT_AUDIT_LOG = (
     Path(__file__).resolve().parents[1]
     / "logs"
@@ -744,8 +754,13 @@ class ArduSubRunner:
                 self.audit.capture(
                     self.master,
                     "MOTOR_OUTPUT_ACTIVE_SAMPLE",
-                    {"motor_number": motor_number, "commanded_pwm": pwm},
-                    duration=0,
+                    {
+                        "motor_number": motor_number,
+                        "main_out": motor_number,
+                        "physical_motor": PHYSICAL_MOTOR_LABELS[motor_number],
+                        "commanded_pwm": pwm,
+                    },
+                    duration=0.15,
                 )
                 active_sample_logged = True
             if rejection_result is not None:
@@ -966,8 +981,26 @@ class ArduSubRunner:
             f"{self.args.turn_seconds:.1f}s"
         )
         deadline = time.monotonic() + self.args.turn_seconds
+        started_at = time.monotonic()
+        active_sample_logged = False
         while time.monotonic() < deadline:
             self.send_control(yaw=self.args.turn_yaw)
+            if (
+                not active_sample_logged
+                and time.monotonic() - started_at >= 0.3
+                and self.audit is not None
+            ):
+                self.audit.capture(
+                    self.master,
+                    "TURN_OUTPUT_ACTIVE_SAMPLE",
+                    {
+                        "yaw_command": self.args.turn_yaw,
+                        "yaw_sign": self.args.yaw_sign,
+                        "effective_yaw": self.args.turn_yaw * self.args.yaw_sign,
+                    },
+                    duration=0.15,
+                )
+                active_sample_logged = True
             time.sleep(CONTROL_PERIOD)
         self.neutral(1.0)
 
@@ -977,11 +1010,30 @@ class ArduSubRunner:
             f"yaw={self.args.circle_yaw}, time={self.args.circle_seconds:.1f}s"
         )
         deadline = time.monotonic() + self.args.circle_seconds
+        started_at = time.monotonic()
+        active_sample_logged = False
         while time.monotonic() < deadline:
             self.send_control(
                 forward=self.args.circle_forward,
                 yaw=self.args.circle_yaw,
             )
+            if (
+                not active_sample_logged
+                and time.monotonic() - started_at >= 0.3
+                and self.audit is not None
+            ):
+                self.audit.capture(
+                    self.master,
+                    "CIRCLE_OUTPUT_ACTIVE_SAMPLE",
+                    {
+                        "forward_command": self.args.circle_forward,
+                        "yaw_command": self.args.circle_yaw,
+                        "yaw_sign": self.args.yaw_sign,
+                        "effective_yaw": self.args.circle_yaw * self.args.yaw_sign,
+                    },
+                    duration=0.15,
+                )
+                active_sample_logged = True
             time.sleep(CONTROL_PERIOD)
         self.neutral(1.0)
         print("Circle timer complete; diameter and closure must be checked externally")
@@ -1188,8 +1240,9 @@ def main() -> int:
     try:
         runner.set_manual()
         runner.neutral(1.0)
-        if args.test != "mission":
-            runner.disarmed_countdown(args.countdown, args.test)
+        # Every real run, including the full mission, gets its countdown while
+        # the vehicle is still DISARMED and hardware output safety is locked.
+        runner.disarmed_countdown(args.countdown, args.test)
         runner.set_output_safety(True)
         print(
             f"Pre-arm ESC neutral settle: {ESC_NEUTRAL_SETTLE_SECONDS:.1f}s "

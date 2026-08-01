@@ -29,15 +29,13 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         assert function in aliases
     assert 'local motor="$1" pwm="$2" seconds="$3"' in aliases
     assert 'local forward="$1" seconds="$2"' in aliases
-    assert 'local vertical="$1" seconds="$2"' in aliases
-    assert 'local forward="$1" vertical="$2" seconds="$3"' in aliases
-    assert 'local yaw="$1" seconds="$2"' in aliases
     assert "--test motor --motor-number" in aliases
-    assert "--test mission" in aliases
-    assert "--confirm-full-mission FULL_MISSION_TUNED" in aliases
-    assert "Both physical M3 and M4 get the same mixer demand." in aliases
+    assert "--test straight --forward" in aliases
+    assert "FORWARD-ONLY mode" in aliases
+    assert "vertical thrusters cancelled" in aliases
+    assert "full mission cancelled" in aliases
+    assert "Relocated M3 is on motor 4" in aliases
     assert "--confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED" in aliases
-    assert "--confirm-long-vertical LONG_FULL_OUTPUT_RESTRAINED" in aliases
 
 
 def test_pool_service_rejects_invalid_motor_duration_early() -> None:
@@ -52,6 +50,41 @@ def test_pool_service_rejects_invalid_motor_duration_early() -> None:
     )
     with pytest.raises(SystemExit, match="between 1 and 5 seconds"):
         service.validate_start(args)
+
+
+def test_pool_service_rejects_bad_mission_dive_early() -> None:
+    service = load_pool_service()
+    args = service.parser().parse_args(
+        ["start", "--test", "mission", "--dive-seconds", "21"]
+    )
+    with pytest.raises(SystemExit, match="dive-seconds"):
+        service.validate_start(args)
+    args = service.parser().parse_args(
+        ["start", "--test", "mission", "--dive-seconds", "2", "--dive-vertical", "500"]
+    )
+    with pytest.raises(SystemExit, match="dive-vertical"):
+        service.validate_start(args)
+
+
+def test_real_mission_countdown_happens_before_output_unlock() -> None:
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "video_mission_runner.py"
+    ).read_text(encoding="utf-8")
+    countdown = source.index("runner.disarmed_countdown(args.countdown, args.test)")
+    unlock = source.index("runner.set_output_safety(True)", countdown)
+    assert countdown < unlock
+    assert 'if args.test != "mission"' not in source[countdown - 80 : countdown]
+
+
+def test_motor_audit_records_physical_mapping_and_waits_for_telemetry() -> None:
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "video_mission_runner.py"
+    ).read_text(encoding="utf-8")
+    assert '"physical_motor": PHYSICAL_MOTOR_LABELS[motor_number]' in source
+    assert '"MOTOR_OUTPUT_ACTIVE_SAMPLE"' in source
+    assert "duration=0.15" in source
+    assert '"TURN_OUTPUT_ACTIVE_SAMPLE"' in source
+    assert '"CIRCLE_OUTPUT_ACTIVE_SAMPLE"' in source
 
 
 def test_pool_service_forwards_full_mission_interlocks(tmp_path: Path) -> None:
