@@ -377,6 +377,7 @@ Sonrasında güç ve süre doğrudan verilebilir:
 pool-forward -1000 60
 pool-vertical 1000 60
 pool-combined -1000 1000 60
+pool-turn 1000 60
 pool-status
 pool-stop
 pool-audit --lines 5 --full
@@ -384,10 +385,16 @@ pool-audit --lines 5 --full
 
 İsteğe bağlı son sayı geri sayımdır; örneğin `pool-forward -700 15 10`, 10
 saniye geri sayımdan sonra `-700` ileri komutunu 15 saniye uygular. İzin verilen
-aralıklar ileri için `-1000…1000` (`0` hariç), dikey için `0…1000`, hareket
-süresi için `1…60` saniyedir.
+aralıklar ileri ve dönüş için `-1000…1000` (`0` hariç), dikey için `0…1000`,
+hareket süresi için `1…60`, dönüş süresi için `0.2…60` saniyedir.
 
 ## 7. Sağ dönüş kalibrasyonu
+
+`turn-yaw` tam `-1000…1000` aralığını, `turn-seconds` ise `0.2…60` saniyeyi
+destekler. Kısa alias biçimi `pool-turn YAW SÜRE [GERİ_SAYIM]` şeklindedir.
+Örneğin `pool-turn -650 2.5 10`, 10 saniye geri sayımdan sonra `-650` yaw
+komutunu 2.5 saniye uygular. İşaret gerçek sağ/sol yönü havuzda gözlenerek
+belirlenir.
 
 İlk test düşük güç ve kısa süreyle yapılır:
 

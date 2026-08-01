@@ -113,6 +113,7 @@ pool-help
 pool-forward -1000 60
 pool-vertical 1000 60
 pool-combined -1000 1000 60
+pool-turn 1000 60
 pool-status
 pool-stop
 ```

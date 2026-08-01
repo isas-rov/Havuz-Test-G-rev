@@ -104,6 +104,13 @@ def parser() -> argparse.ArgumentParser:
         ),
     )
     start.add_argument(
+        "--confirm-long-turn",
+        help=(
+            "Required for high turn output longer than 5 seconds: "
+            f"{LONG_OUTPUT_CONFIRMATION}"
+        ),
+    )
+    start.add_argument(
         "--confirm-full-mission",
         help=f"Required for a real full mission: {MISSION_CONFIRMATION}",
     )
@@ -178,6 +185,30 @@ def validate_start(args: argparse.Namespace) -> None:
             f"--confirm-long-forward {LONG_OUTPUT_CONFIRMATION} only when "
             "the vehicle is fully submerged, restrained, and emergency power "
             "cut is ready"
+        )
+    if (
+        args.enable_output
+        and args.test == "turn-right"
+        and abs(args.turn_yaw) > 400
+        and args.confirm_high_output != HIGH_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "high turn output remains locked; add "
+            f"--confirm-high-output {HIGH_OUTPUT_CONFIRMATION} only when the "
+            "vehicle is fully submerged and restrained"
+        )
+    if (
+        args.enable_output
+        and args.test == "turn-right"
+        and abs(args.turn_yaw) > 400
+        and args.turn_seconds > 5.0
+        and args.confirm_long_turn != LONG_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "long high turn output remains locked; add "
+            f"--confirm-long-turn {LONG_OUTPUT_CONFIRMATION} only when the "
+            "vehicle is fully submerged, restrained, and emergency power cut "
+            "is ready"
         )
     if (
         args.enable_output
@@ -264,6 +295,18 @@ def runner_command(args: argparse.Namespace, root: Path) -> list[str]:
         ):
             command.extend(
                 ["--confirm-long-forward", LONG_OUTPUT_CONFIRMATION]
+            )
+        if args.test == "turn-right" and abs(args.turn_yaw) > 400:
+            command.extend(
+                ["--confirm-high-output", HIGH_OUTPUT_CONFIRMATION]
+            )
+        if (
+            args.test == "turn-right"
+            and abs(args.turn_yaw) > 400
+            and args.turn_seconds > 5.0
+        ):
+            command.extend(
+                ["--confirm-long-turn", LONG_OUTPUT_CONFIRMATION]
             )
     return command
 

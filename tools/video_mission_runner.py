@@ -271,13 +271,22 @@ def parse_args(argv=None):
             f"required value: {LONG_OUTPUT_CONFIRMATION}"
         ),
     )
+    parser.add_argument(
+        "--confirm-long-turn",
+        help=(
+            "Additional interlock for high turn output longer than 5 seconds; "
+            f"required value: {LONG_OUTPUT_CONFIRMATION}"
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def validate_controls(args) -> None:
     if not 1 <= abs(args.forward) <= 1000:
         raise ValueError("--forward magnitude must be between 1 and 1000")
-    for name in ("circle_forward", "circle_yaw", "turn_yaw"):
+    if not 1 <= abs(args.turn_yaw) <= 1000:
+        raise ValueError("--turn-yaw magnitude must be between 1 and 1000")
+    for name in ("circle_forward", "circle_yaw"):
         value = abs(getattr(args, name))
         if not 1 <= value <= 400:
             raise ValueError(f"--{name.replace('_', '-')} must be between 1 and 400")
@@ -297,8 +306,8 @@ def validate_controls(args) -> None:
         raise ValueError("--vertical must not be 500 for a vertical/combined test")
     if not 5.0 <= args.degrees <= 90.0:
         raise ValueError("--degrees must be between 5 and 90")
-    if not 0.2 <= args.turn_seconds <= 10.0:
-        raise ValueError("--turn-seconds must be between 0.2 and 10 seconds")
+    if not 0.2 <= args.turn_seconds <= 60.0:
+        raise ValueError("--turn-seconds must be between 0.2 and 60 seconds")
     if not 1.0 <= args.circle_seconds <= 60.0:
         raise ValueError("--circle-seconds must be between 1 and 60 seconds")
     if not -100 <= args.straight_yaw_trim <= 100:
@@ -979,6 +988,28 @@ def main() -> int:
             f"--confirm-long-forward {LONG_OUTPUT_CONFIRMATION} only when "
             "the vehicle is fully submerged, restrained, and emergency power "
             "cut is ready"
+        )
+    if (
+        args.test == "turn-right"
+        and abs(args.turn_yaw) > 400
+        and args.confirm_high_output != HIGH_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "high turn output remains locked; add "
+            f"--confirm-high-output {HIGH_OUTPUT_CONFIRMATION} only when the "
+            "vehicle is fully submerged and restrained"
+        )
+    if (
+        args.test == "turn-right"
+        and abs(args.turn_yaw) > 400
+        and args.turn_seconds > 5.0
+        and args.confirm_long_turn != LONG_OUTPUT_CONFIRMATION
+    ):
+        raise SystemExit(
+            "long high turn output remains locked; add "
+            f"--confirm-long-turn {LONG_OUTPUT_CONFIRMATION} only when the "
+            "vehicle is fully submerged, restrained, and emergency power cut "
+            "is ready"
         )
 
     signal.signal(signal.SIGTERM, handle_stop_signal)

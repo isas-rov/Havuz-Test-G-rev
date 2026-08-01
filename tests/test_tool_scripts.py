@@ -19,6 +19,7 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         "pool-forward()",
         "pool-vertical()",
         "pool-combined()",
+        "pool-turn()",
         "pool-status()",
         "pool-stop()",
         "pool-audit()",
@@ -27,6 +28,7 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
     assert 'local forward="$1" seconds="$2"' in aliases
     assert 'local vertical="$1" seconds="$2"' in aliases
     assert 'local forward="$1" vertical="$2" seconds="$3"' in aliases
+    assert 'local yaw="$1" seconds="$2"' in aliases
     assert "--confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED" in aliases
     assert "--confirm-long-vertical LONG_FULL_OUTPUT_RESTRAINED" in aliases
 
@@ -165,6 +167,29 @@ def test_pool_service_long_high_forward_has_extra_interlocks() -> None:
         service.validate_start(args)
     args.confirm_high_output = "HIGH_OUTPUT_RESTRAINED"
     with pytest.raises(SystemExit, match="long high forward output remains locked"):
+        service.validate_start(args)
+
+
+def test_pool_service_long_high_turn_has_extra_interlocks() -> None:
+    service = load_pool_service()
+    args = service.parser().parse_args(
+        [
+            "start",
+            "--test",
+            "turn-right",
+            "--turn-yaw",
+            "1000",
+            "--turn-seconds",
+            "60",
+            "--enable-output",
+            "--confirm",
+            "MOTORS_ARE_CLEAR",
+        ]
+    )
+    with pytest.raises(SystemExit, match="high turn output remains locked"):
+        service.validate_start(args)
+    args.confirm_high_output = "HIGH_OUTPUT_RESTRAINED"
+    with pytest.raises(SystemExit, match="long high turn output remains locked"):
         service.validate_start(args)
 
 
@@ -356,6 +381,37 @@ def test_pool_service_combined_full_output_forwards_all_interlocks(
     assert "--confirm-long-vertical" in command
 
 
+def test_pool_service_forwards_long_high_turn_interlocks(tmp_path: Path) -> None:
+    service = load_pool_service()
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    args = service.parser().parse_args(
+        [
+            "start",
+            "--test",
+            "turn-right",
+            "--turn-yaw",
+            "-1000",
+            "--turn-seconds",
+            "60",
+            "--enable-output",
+            "--confirm",
+            "MOTORS_ARE_CLEAR",
+            "--confirm-high-output",
+            "HIGH_OUTPUT_RESTRAINED",
+            "--confirm-long-turn",
+            "LONG_FULL_OUTPUT_RESTRAINED",
+        ]
+    )
+    service.validate_start(args)
+    command = service.runner_command(args, tmp_path)
+    assert command[command.index("--turn-yaw") + 1] == "-1000"
+    assert command[command.index("--turn-seconds") + 1] == "60.0"
+    assert "--confirm-high-output" in command
+    assert "--confirm-long-turn" in command
+
+
 def test_runner_allows_sixty_second_straight_test() -> None:
     runner_module = load_video_runner()
     args = runner_module.parse_args([])
@@ -453,12 +509,36 @@ def test_runner_rejects_vertical_beyond_protocol_range_or_sixty_seconds() -> Non
 
 def test_runner_rejects_excessive_open_loop_times() -> None:
     runner_module = load_video_runner()
-    args = runner_module.parse_args(["--turn-seconds", "10.1"])
+    args = runner_module.parse_args(["--turn-seconds", "60.1"])
     with pytest.raises(ValueError, match="turn-seconds"):
         runner_module.validate_controls(args)
 
     args = runner_module.parse_args(["--circle-seconds", "60.1"])
     with pytest.raises(ValueError, match="circle-seconds"):
+        runner_module.validate_controls(args)
+
+
+def test_runner_allows_full_turn_range_for_sixty_seconds() -> None:
+    runner_module = load_video_runner()
+    for yaw in (-1000, 1000):
+        args = runner_module.parse_args(
+            [
+                "--test",
+                "turn-right",
+                "--turn-yaw",
+                str(yaw),
+                "--turn-seconds",
+                "60",
+            ]
+        )
+        runner_module.validate_controls(args)
+
+
+@pytest.mark.parametrize("yaw", [-1001, 0, 1001])
+def test_runner_rejects_turn_outside_protocol_range(yaw: int) -> None:
+    runner_module = load_video_runner()
+    args = runner_module.parse_args(["--test", "turn-right", "--turn-yaw", str(yaw)])
+    with pytest.raises(ValueError, match="turn-yaw magnitude"):
         runner_module.validate_controls(args)
 
 

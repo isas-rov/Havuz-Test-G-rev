@@ -15,7 +15,8 @@ _pool_usage() {
     echo "  pool-forward  FORWARD SECONDS [COUNTDOWN]"
     echo "  pool-vertical VERTICAL SECONDS [COUNTDOWN]"
     echo "  pool-combined FORWARD VERTICAL SECONDS [COUNTDOWN]"
-    echo "Ranges: forward=-1000..1000 (except 0), vertical=0..1000, seconds=1..60"
+    echo "  pool-turn      YAW SECONDS [COUNTDOWN]"
+    echo "Ranges: axes=-1000..1000, movement seconds=1..60, turn seconds=0.2..60"
 }
 
 pool-forward() {
@@ -60,6 +61,20 @@ pool-combined() {
         --confirm-high-output HIGH_OUTPUT_RESTRAINED \
         --confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED \
         --confirm-long-vertical LONG_FULL_OUTPUT_RESTRAINED
+}
+
+pool-turn() {
+    if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+        _pool_usage
+        return 2
+    fi
+    local yaw="$1" seconds="$2" countdown="${3:-15}"
+    _pool_test_run start \
+        --test turn-right --degrees 30 --turn-yaw "$yaw" \
+        --turn-seconds "$seconds" --yaw-sign 1 --countdown "$countdown" \
+        --enable-output --confirm MOTORS_ARE_CLEAR \
+        --confirm-high-output HIGH_OUTPUT_RESTRAINED \
+        --confirm-long-turn LONG_FULL_OUTPUT_RESTRAINED
 }
 
 pool-status() {
