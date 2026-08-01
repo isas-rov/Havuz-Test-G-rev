@@ -16,6 +16,7 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         Path(__file__).resolve().parents[1] / "tools" / "pool_aliases.sh"
     ).read_text(encoding="utf-8")
     for function in (
+        "pool-motor()",
         "pool-forward()",
         "pool-vertical()",
         "pool-combined()",
@@ -25,12 +26,24 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         "pool-audit()",
     ):
         assert function in aliases
+    assert 'local motor="$1" pwm="$2" seconds="$3"' in aliases
     assert 'local forward="$1" seconds="$2"' in aliases
     assert 'local vertical="$1" seconds="$2"' in aliases
     assert 'local forward="$1" vertical="$2" seconds="$3"' in aliases
     assert 'local yaw="$1" seconds="$2"' in aliases
+    assert "--test motor --motor-number" in aliases
+    assert "Both physical M3 and M4 get the same mixer demand." in aliases
     assert "--confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED" in aliases
     assert "--confirm-long-vertical LONG_FULL_OUTPUT_RESTRAINED" in aliases
+
+
+def test_pool_service_rejects_invalid_motor_duration_early() -> None:
+    service = load_pool_service()
+    args = service.parser().parse_args(
+        ["start", "--test", "motor", "--duration", "5", "--motor-pwm", "1525"]
+    )
+    with pytest.raises(SystemExit, match="between 1 and 3 seconds"):
+        service.validate_start(args)
 
 
 def test_pool_alias_installer_is_idempotent(tmp_path: Path, monkeypatch) -> None:

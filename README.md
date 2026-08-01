@@ -110,13 +110,18 @@ pool-help
 Örnekler:
 
 ```bash
-pool-forward -1000 60
-pool-vertical 1000 60
-pool-combined -1000 1000 60
-pool-turn 1000 60
+pool-motor 6 1525 2 10
+pool-motor 5 1525 2 10
+pool-forward -300 3 10
+pool-vertical 600 3 10
+pool-combined -300 600 3 10
+pool-turn 300 2 10
 pool-status
 pool-stop
 ```
+
+`pool-vertical` tek mixer `z` komutudur; fiziksel M3 ve M4 aynı dikey
+itkiyi alır. Mantıksal motor `5` = fiziksel M3, `6` = fiziksel M4.
 
 Bağlantı varken güvenli durdurma:
 

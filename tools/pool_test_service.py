@@ -124,6 +124,13 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_start(args: argparse.Namespace) -> None:
+    if args.test in ("motor", "motor-all"):
+        if not 1.0 <= args.duration <= 3.0:
+            raise SystemExit("motor tests require --duration between 1 and 3 seconds")
+        if not 1100 <= args.motor_pwm <= 1900 or args.motor_pwm == 1500:
+            raise SystemExit(
+                "--motor-pwm must be 1100-1900 and must not be neutral 1500"
+            )
     if args.enable_output and args.confirm != OUTPUT_CONFIRMATION:
         raise SystemExit(
             f"output remains locked; add --confirm {OUTPUT_CONFIRMATION} "
