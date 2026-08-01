@@ -27,7 +27,6 @@ def test_pool_aliases_expose_adjustable_power_and_duration() -> None:
         assert function in aliases
     assert 'local forward="$1" seconds="$2"' in aliases
     assert 'local vertical="$1" seconds="$2"' in aliases
-    assert "VERTICAL must be an integer from 0 to 1000" in aliases
     assert 'local forward="$1" vertical="$2" seconds="$3"' in aliases
     assert 'local yaw="$1" seconds="$2"' in aliases
     assert "--confirm-long-forward LONG_FULL_OUTPUT_RESTRAINED" in aliases
@@ -205,13 +204,6 @@ def test_pool_service_uses_unbuffered_python(tmp_path: Path) -> None:
     assert "--enable-output" not in command
     audit_path = Path(command[command.index("--audit-log") + 1])
     assert audit_path.parts[-3:] == ("logs", "pool_tests", "pixhawk-audit.jsonl")
-
-
-def test_pool_service_keeps_failed_transient_unit_for_accurate_status() -> None:
-    source = (
-        Path(__file__).resolve().parents[1] / "tools" / "pool_test_service.py"
-    ).read_text(encoding="utf-8")
-    assert '"--collect"' not in source
 
 
 def test_pool_service_forwards_individual_motor_settings(tmp_path: Path) -> None:

@@ -343,6 +343,7 @@ def start_test(args: argparse.Namespace) -> int:
         systemd_run,
         "--user",
         f"--unit={unit}",
+        "--collect",
         "--property=Type=exec",
         "--property=Restart=no",
         "--property=TimeoutStopSec=15",

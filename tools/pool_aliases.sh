@@ -16,8 +16,7 @@ _pool_usage() {
     echo "  pool-vertical VERTICAL SECONDS [COUNTDOWN]"
     echo "  pool-combined FORWARD VERTICAL SECONDS [COUNTDOWN]"
     echo "  pool-turn      YAW SECONDS [COUNTDOWN]"
-    echo "Ranges: forward/yaw=-1000..1000 (except 0), vertical=0..1000 (except 500)"
-    echo "        movement seconds=1..60, turn seconds=0.2..60"
+    echo "Ranges: axes=-1000..1000, movement seconds=1..60, turn seconds=0.2..60"
 }
 
 pool-forward() {
@@ -40,14 +39,6 @@ pool-vertical() {
         return 2
     fi
     local vertical="$1" seconds="$2" countdown="${3:-15}"
-    if ! [[ "$vertical" =~ ^[0-9]+$ ]] \
-        || [ "$vertical" -gt 1000 ] \
-        || [ "$vertical" -eq 500 ]; then
-        echo "ERROR: VERTICAL must be an integer from 0 to 1000, except neutral 500."
-        echo "Example down: pool-vertical 1000 20 5"
-        echo "Example opposite direction: pool-vertical 0 20 5"
-        return 2
-    fi
     _pool_test_run start \
         --test vertical --vertical "$vertical" --duration "$seconds" \
         --countdown "$countdown" \
