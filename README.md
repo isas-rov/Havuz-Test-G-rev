@@ -7,7 +7,7 @@ Bu repo şunları içerir:
 
 - Pixhawk parametre ve sensörlerinin salt-okunur kontrolü
 - M1-M6 motorlarının operatör komutuyla **tek tek** denenmesi
-- Süreli düz, dikey, yaw ve çember kalibrasyonları
+- MANUAL açık çevrim mixer ile pusulasız süreli hareket kalibrasyonları
 - SSH/Wi-Fi koptuğunda Raspberry üzerinde devam eden tek-seferlik test servisi
 - Görev videosu parkurunun donanımsız provası ve güvenlik kilitli çalıştırıcısı
 
@@ -50,6 +50,11 @@ python tools/pixhawk_readonly_check.py \
 sensörü bulunmadığı için barometrenin `CHECK` görünmesi mevcut donanımda
 beklenir; otomatik derinlik ölçümü/tutma kullanılamaz.
 
+Görev hareketleri `MANUAL` açık çevrim mixer ile çalışır. Kod pusula yaw açısını
+okumaz ve bir başlığı tutmaya çalışmaz. Dönüş açısı, düz gidiş sapması ve çember kapanması havuzda dışarıdan
+ölçülerek süre/komut değerleri ayarlanır. Pusula Pixhawk sağlık/arming kontrolünde
+şimdilik etkin kalabilir, ancak rota kararında kullanılmaz.
+
 ## Tek motor testi
 
 Motorlar otomatik sırayla çalışmaz. Operatör hangi motorun hazır olduğunu
@@ -65,10 +70,51 @@ Akış: 15 saniye DISARMED geri sayım, seçilen motor için 3 saniye düşük P
 1500 nötr ve DISARM. Ters yön kontrolü gerektiğinde `--motor-pwm 1475`
 kullanılır. `1525/1475` doğrudan PWM'dir; yüzde komutu kullanılmaz.
 
+Doğrudan motor testleri `MANUAL` modda yürütülür. Safety açıldıktan sonra ARM
+öncesinde ve ARM sonrasında MAIN OUT 1–6 değerleri `1500 ±10 µs` değilse test
+otomatik olarak reddedilir; böylece kontrolcünün başka motorları sürmesine izin
+verilmez.
+
 Durum ve log:
 
 ```bash
 python tools/pool_test_service.py status
+```
+
+Altı tek-motor testi geçtikten sonra, araç tamamen su içinde ve fiziksel olarak
+sabitlenmişken M1–M6 aynı doğrudan PWM ile en fazla 3 saniye denenebilir:
+
+```bash
+python tools/pool_test_service.py start \
+  --test motor-all --motor-pwm 1525 --duration 3 --countdown 10 \
+  --enable-output --confirm MOTORS_ARE_CLEAR \
+  --confirm-all-motors ALL_MOTORS_RESTRAINED
+```
+
+Bu bir ileri hareket komutu değil, altı çıkışın eşzamanlı doğrudan PWM testidir.
+
+Dikey komut `0–1000`, ileri komutu `-1000–1000` aralığını destekler; `500`
+dikey nötrdür. İleri, dikey ve birleşik hareket testlerinde süre `1–60`
+saniyedir. Yüksek ve uzun çıkışlar ek onay ister; doğrudan tekli ve eşzamanlı
+motor PWM testleri ise en fazla 3 saniye olarak kalır.
+
+Raspberry üzerinde ayarlanabilir kısa komutları bir kez kurmak için:
+
+```bash
+cd /home/admin/isas/software
+.venv/bin/python tools/install_pool_aliases.py
+source ~/.bashrc
+pool-help
+```
+
+Örnekler:
+
+```bash
+pool-forward -1000 60
+pool-vertical 1000 60
+pool-combined -1000 1000 60
+pool-status
+pool-stop
 ```
 
 Bağlantı varken güvenli durdurma:
@@ -77,12 +123,39 @@ Bağlantı varken güvenli durdurma:
 python tools/pool_test_service.py stop
 ```
 
+## Tek dosyada Pixhawk ARM/DISARM ve telemetri kaydı
+
+Gerçek testlerin bütün oturum olayları şu kalıcı JSONL dosyasına eklenir:
+
+```text
+logs/pool_tests/pixhawk-audit.jsonl
+```
+
+Her bağlantı, safety değişimi, ARM/DISARM isteği ve onayı, test başlangıcı/bitişi
+ile hata kaydında o anda ulaşılabilen bütün MAVLink mesaj türlerinin son örneği
+saklanır. Okunabilir son 20 olay:
+
+```bash
+python tools/pool_test_service.py audit
+```
+
+Son 5 olayın bütün ham telemetri alanları:
+
+```bash
+python tools/pool_test_service.py audit --lines 5 --full
+```
+
 Diğer havuz kalibrasyonlarının sırası ve kayıt edilecek ölçümler için
 [`docs/pool-test-runbook.md`](docs/pool-test-runbook.md) dosyasına bakın.
+Sahada uygulanacak kesin komut sırası için
+[`docs/havuz-test-komut-sirasi.md`](docs/havuz-test-komut-sirasi.md) dosyasını
+kullanın.
 
 ## Çıkış kilitleri
 
 - Parametresiz veya `--enable-output` olmadan çalıştırma yalnız dry-run yapar.
 - Gerçek test `--enable-output --confirm MOTORS_ARE_CLEAR` ister.
 - Tam görev ayrıca `--confirm-full-mission FULL_MISSION_TUNED` ister.
+- Düğmesiz Pixhawk'ta çıkış safety kilidi yalnız geri sayım ve onaydan sonra
+  yazılımla açılır; test sonunda DISARM'dan sonra tekrar kilitlenir.
 - Servis açılışta otomatik başlamaz ve biten/hata veren testi yeniden başlatmaz.

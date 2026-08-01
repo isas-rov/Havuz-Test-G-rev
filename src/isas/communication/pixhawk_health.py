@@ -21,6 +21,10 @@ EXPECTED_PARAMETERS: Dict[str, float] = {
     "FLTMODE_CH": 0.0,
     "AHRS_ORIENTATION": 0.0,
     "COMPASS_USE": 1.0,
+    # This vehicle has no physical safety button. Leaving the safety switch
+    # enabled can silently suppress MAIN OUT and rejects ArduSub motor tests.
+    "BRD_SAFETY_DEFLT": 0.0,
+    "BRD_SAFETYOPTION": 0.0,
 }
 
 

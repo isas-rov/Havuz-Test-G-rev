@@ -57,6 +57,11 @@ Motorlar otomatik sırayla çalıştırılmaz. Operatör hazır olduğunu bildir
 sonunda ilgili motor nötrlenir ve araç DISARM edilir. Test süresi gerektiğinde
 `--duration 3` yapılabilir.
 
+Bu araçta fiziksel safety düğmesi kullanılmaz. Gerçek test runner'ı, geri sayım
+bittikten sonra Pixhawk PWM safety kilidini MAVLink onayıyla açar. Testin sonunda
+önce nötr ve DISARM, ardından PWM safety kilidi uygulanır. Bu işlem için ayrıca
+bir terminal komutu gerekmez.
+
 ## 4. Birleşik hareket kalibrasyonu
 
 Testler sırayla ve her birinin sonucu doğrulandıktan sonra yapılır:
@@ -70,13 +75,31 @@ python tools/pool_test_service.py start --test straight --duration 20 --forward 
 # Dikey yön: önce 1 s; bu derinlik hedefi değil, açık çevrim itki testidir
 python tools/pool_test_service.py start --test vertical --duration 1 --vertical 550 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
 
-# Yaw yönü ve pusula geri beslemesi: önce 30°, sonra 90°
-python tools/pool_test_service.py start --test turn-right --degrees 30 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
-python tools/pool_test_service.py start --test turn-right --degrees 90 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
+# Sağ dönüş: pusula kullanılmaz; önce düşük komut ve kısa süre
+python tools/pool_test_service.py start --test turn-right --degrees 30 --turn-yaw 80 --turn-seconds 1 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
 
-# Yaklaşık 2 m çap hedefi için ilk çember kalibrasyonu
-python tools/pool_test_service.py start --test circle --circle-forward 100 --circle-yaw 80 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
+# Yaklaşık 2 m çap hedefi için süreli ilk çember kalibrasyonu
+python tools/pool_test_service.py start --test circle --circle-forward 100 --circle-yaw 80 --circle-seconds 8 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
 ```
+
+Hareket testleri `ACRO` modundadır. Kod pusula başlığı okumaz. `--degrees 30`
+yalnızca kayıt/log etiketi olarak beklenen açıyı belirtir; dönüşü bitiren değer
+`--turn-seconds` süresidir. Gerçek açıyı dışarıdan ölçün. Örneğin 1 saniyede 42°
+döndüyse aynı güçte 90° için ilk tahmin `90 / 42 = 2,14 saniye` olur; sonraki
+denemeyi daha düşük risk için bunun altında yapıp ince ayarlayın. Akü gerilimi ve
+su direnci sonucu değiştirebilir.
+
+Düz giderken sağa/sola sabit sapma varsa pusula düzeltmesi yerine küçük bir trim
+denenir. Örnek:
+
+```bash
+python tools/pool_test_service.py start --test straight --duration 5 --forward 100 --straight-yaw-trim -5 --countdown 15 --enable-output --confirm MOTORS_ARE_CLEAR
+```
+
+Trim yönü yanlışsa işareti değiştirin; büyüklüğü önce 5'er adımla artırın. Çember
+360° olduğunda dışarıdan kronometreyle geçen süreyi kaydedip sonraki çalıştırmada
+`--circle-seconds` olarak kullanın. `--circle-forward` ile `--circle-yaw` oranı
+yaklaşık çapı belirler; süre yalnızca çemberin nerede biteceğini belirler.
 
 Bir test sırasında bağlantı varsa güvenli durdurma:
 
@@ -91,9 +114,9 @@ GCS failsafe ayarı motorları durdurur.
 ## 5. Kayıt edilecek ölçümler
 
 - M1-M6: motor numarası, 1525'te aracın hangi yöne itildiği, titreşim/ses
-- İleri test: süre, gidilen metre, sağa/sola sapma, son yaw
+- İleri test: süre, gidilen metre, sağa/sola sapma, kullanılan yaw trim
 - Dikey test: 550 komutunda araç yükseldi mi daldı mı
-- Dönüş: istenen açı, gerçekleşen yön, tamamlanma süresi
+- Dönüş: yaw komutu, komut süresi, dışarıdan ölçülen gerçek açı ve yön
 - Çember: yaklaşık çap, tamamlanma süresi, başlangıç ve bitiş konumu
 
 Basınç sensörü olmadığı için 1 m derinlik otomatik ölçülemez veya tutulamaz.
