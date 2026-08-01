@@ -329,8 +329,8 @@ def validate_controls(args) -> None:
         raise ValueError("--duration must be between 1 and 60 seconds")
     if args.test == "motor" and args.duration > 3.0:
         raise ValueError("individual motor tests require --duration between 1 and 3 seconds")
-    if args.test == "motor-all" and args.duration > 20.0:
-        raise ValueError("motor-all tests require --duration between 1 and 20 seconds")
+    if args.test == "motor-all" and args.duration > 60.0:
+        raise ValueError("motor-all tests require --duration between 1 and 60 seconds")
     if (
         not MOTOR_PWM_MIN <= args.motor_pwm <= MOTOR_PWM_MAX
         or args.motor_pwm == MOTOR_NEUTRAL_PWM

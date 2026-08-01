@@ -46,9 +46,9 @@ def test_pool_service_rejects_invalid_motor_duration_early() -> None:
     with pytest.raises(SystemExit, match="between 1 and 3 seconds"):
         service.validate_start(args)
     args = service.parser().parse_args(
-        ["start", "--test", "motor-all", "--duration", "21", "--motor-pwm", "1900"]
+        ["start", "--test", "motor-all", "--duration", "61", "--motor-pwm", "1900"]
     )
-    with pytest.raises(SystemExit, match="between 1 and 20 seconds"):
+    with pytest.raises(SystemExit, match="between 1 and 60 seconds"):
         service.validate_start(args)
 
 

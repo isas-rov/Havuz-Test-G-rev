@@ -140,8 +140,8 @@ def validate_start(args: argparse.Namespace) -> None:
                 "individual motor tests require --duration between 1 and 3 seconds"
             )
     if args.test == "motor-all":
-        if not 1.0 <= args.duration <= 20.0:
-            raise SystemExit("motor-all tests require --duration between 1 and 20 seconds")
+        if not 1.0 <= args.duration <= 60.0:
+            raise SystemExit("motor-all tests require --duration between 1 and 60 seconds")
     if args.test in ("motor", "motor-all"):
         if not 1100 <= args.motor_pwm <= 1900 or args.motor_pwm == 1500:
             raise SystemExit(
